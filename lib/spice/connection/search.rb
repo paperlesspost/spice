@@ -23,31 +23,42 @@ module Spice
         params = options.collect{ |k, v| "#{k}=#{CGI::escape(v.to_s)}"}.join("&")
         case index
         when 'node'
-          get("/search/#{CGI::escape(index.to_s)}?#{params}")['rows'].map do |node|
+          search_and_map(index, params) do |node|
             Spice::Node.get_or_new(node)
           end
         when 'role'
-          get("/search/#{CGI::escape(index.to_s)}?#{params}")['rows'].map do |role|
+          search_and_map(index, params) do |role|
             Spice::Role.get_or_new(role)
           end
         when 'client'
-          get("/search/#{CGI::escape(index.to_s)}?#{params}")['rows'].map do |client|
+          search_and_map(index, params) do |client|
             Spice::Client.get_or_new(client)
           end
         when 'environment'
-          get("/search/#{CGI::escape(index.to_s)}?#{params}")['rows'].map do |env|
+          search_and_map(index, params) do |env|
             env['attrs'] = env.delete('attributes')
             Spice::Environment.get_or_new(env)
           end
         else
           # assume it's a data bag
-          get("/search/#{CGI::escape(index.to_s)}?#{params}")['rows'].map do |db|
+          search_and_map(index, params) do |db|
             data = db['raw_data']
             Spice::DataBagItem.get_or_new(data)
           end
         end
       end # def search
-      
+
+      private
+      def search_and_map(index, params, &block)
+        url = "/search/#{CGI::escape(index.to_s)}?#{params}"
+        result = get(url)
+        if result && result['rows']
+          result['rows'].map(&block)
+        else
+          raise Spice::Error.new(RuntimeError.new("Error making search to '#{url}'.\nResponse:\n#{result}"))
+        end
+      end
+
     end # module Search
   end # class Connection
 end # module Spice
